@@ -4,11 +4,10 @@ import pandas as pd
 
 def get_file_data(file_path):
     try:
-        file_content = pd.read_csv(file_path, skiprows=1, usecols=range(3))
+        df = pd.read_csv(file_path, skiprows=1, usecols=range(3))
     except Exception as e:
-        file_content = pd.read_csv(file_path, sep='\t', skiprows=1, usecols=range(3))
-    records = file_content.to_dict('records')
-    return records
+        df = pd.read_csv(file_path, sep='\t', skiprows=1, usecols=range(3))
+    return df
 
 
 def get_file_metadata(file_path): #temp-serial-dropletMassPoint.csv - 290-5-A.csv
