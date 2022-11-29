@@ -1,5 +1,7 @@
 import csv_data, droplet, config, glob, os
 import matplotlib.pyplot as plt
+from matplotlib.ticker import PercentFormatter
+
 import pandas as pd
 
 
@@ -12,20 +14,46 @@ output_path = config.OUTPUT_PATH.format(name=config.OUTPUT_FILE_NAME)
 def main():
     files = csv_data.get_all_files(csv_files)
     max_heights_data = [["Temp [c]", "Max Height [mm]"]]
-    for file in files[0:1]:
-        print(file)
+    df_temps = {temp: pd.DataFrame() for temp in config.TEMP}
+
+    for file in files[:]:
         drop = droplet.Droplet(identifier=file["metadata"]["droplet"],
                                   temp=file["metadata"]["temperature"],
                                   temp_serial=file["metadata"]["temperature_serial"],
                                   raw_data_df=file["data"])
         drop.normalize_data()
         drop.get_max_height()
-        max_heights_data.append([drop.temperature, drop.max_height])
-        yaxis = drop.raw_data_df["y_norm"]
-        xaxis = drop.raw_data_df["t_norm"]
-        plt.plot(xaxis, yaxis) #, marker="o", markersize=1, linestyle=" ")
-        #plt.plot(xaxis, yaxis, marker="o", markerfacecolor="red", linestyle=" ")
-        plt.show()
+        if drop.temperature not in ["290", "295", "305"]:
+            max_heights_data.append([drop.temperature, drop.max_height])
+        drop.get_peaks(peak_width=3) #3 to avoid jitter
+        #print(drop.peaks_df["peaks_y"])
+        peaksy = drop.peaks_df.iloc[drop.peaks_df["peaks_y"].nlargest(1).index]["peaks_y"]
+        peakst = drop.peaks_df.iloc[drop.peaks_df["peaks_y"].nlargest(1).index]["peaks_t"]
+
+        df_temps[str(drop.temperature)] = pd.concat([df_temps[str(drop.temperature)], drop.peaks_df.iloc[drop.peaks_df["peaks_y"].index]])
+    # max_heights = [lis[1] for lis in max_heights_data[1:]]
+    # max_temp = [int(lis[0]) for lis in max_heights_data[1:]]
+    # max_heights_df = pd.DataFrame(data={"temp": max_temp, "max_height": max_heights})
+    # plt.hist2d(max_heights_df["temp"], max_heights_df["max_height"], bins=10)
+    # plt.show()
+
+    fig, axs = plt.subplots(3, 4)
+    plt.suptitle('Juan')
+    for temp in df_temps.keys():
+        if temp in ["290", "295", "305"]:
+            continue
+        t_index = config.TEMP.index(temp)
+        current_axs = axs[int(t_index / 4), t_index % 4]
+        current_axs.set_title(f"T {temp} [C]")
+        current_axs.hist(df_temps[temp]["peaks_y"], bins=20, density=True, range=(0, 20))
+        current_axs.set_ylim([0, 0.4])
+        # current_axs.hist2d(df_temps[temp]["peaks_t"], df_temps[temp]["peaks_y"], bins=10)
+        df_temps[temp] = df_temps[temp].sort_values(by=["peaks_t"])
+        # line, = plt.plot(df_temps[temp]["peaks_t"], df_temps[temp]["peaks_y"].rolling(15).mean(), marker="o", markersize=1, markerfacecolor="red", linestyle="-")
+        # line.set_label(f"T {temp} [C] - Mean {round(df_temps[temp]['peaks_y'].mean(),2)} [mm]")
+
+    # plt.legend()
+    plt.show()
 
     #csv_data.write_to_csv(output_path, max_heights_data)
 
