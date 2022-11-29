@@ -1,3 +1,6 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+
 
 class Droplet:
     def __init__(self, identifier, temp, temp_serial, raw_data_df):
@@ -25,8 +28,62 @@ class Droplet:
         self.max_height = y.max()
         return
 
-    def get_peaks(self):
-        pass
+    def get_peaks(self, peak_width=2):
+        peaks_y = []
+        peaks_t = []
+        last_y = None
+        counter = 0
+        potential_peak = None
+        descending = False
+        for index, row in self.raw_data_df.iterrows():
+            t = row["t_norm"]
+            y = row["y_norm"]
+
+            if last_y is None:
+                last_y = y
+                continue
+
+            if y == last_y:
+                counter = 0
+            elif y > last_y:
+                if descending:
+                    descending = False
+                    counter = 1
+
+                else:
+                    if counter < peak_width:
+                        counter += 1
+
+                    if counter == peak_width:
+                        potential_peak = {"y": y, "t": t}
+            else:
+                if not descending:
+                    descending = True
+                    counter = peak_width - 1
+                else:
+                    if counter > 0:
+                        counter -= 1
+
+                    if counter == 0 and potential_peak:
+                        peaks_y.append(potential_peak["y"])
+                        peaks_t.append(potential_peak["t"])
+                        potential_peak = None
+
+            last_y = y
+
+        self.peaks_df = pd.DataFrame(data={"peaks_y": peaks_y, "peaks_t": peaks_t})
+        return
+
+    def plot_y_with_peaks(self):
+        yaxis = self.raw_data_df["y_norm"]
+        xaxis = self.raw_data_df["t_norm"]
+        plt.plot(xaxis, yaxis)
+        peaksy = self.peaks_df["peaks_y"]
+        peakst = self.peaks_df["peaks_t"]
+        plt.plot(peakst, peaksy, marker="o", markerfacecolor="red", linestyle=" ")
+        plt.show()
+        return
+
 
 
 
