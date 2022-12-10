@@ -10,11 +10,20 @@ def get_file_data(file_path):
     return df
 
 
-def get_file_metadata(file_path): #temp-serial-dropletMassPoint.csv - 290-5-A.csv
+def get_file_metadata(file_path): #temp-serial-dropletMassPoint.csv - 290-5-A.csv/ lab5-290-5-A.csv
     file_name = file_path.split("/")[-1]
-    temperature = int(file_name.split("-")[0])
-    temp_serial = int(file_name.split("-")[1])
-    droplet_mass_point = file_name[file_name.find(".") - 1]
+    if " " in file_name:
+        file_name.replace(" ", "")
+
+    if "lab" not in file_name:
+        temperature = int(file_name.split("-")[0])
+        temp_serial = int(file_name.split("-")[1])
+        droplet_mass_point = file_name[file_name.find(".") - 1]
+    elif "lab" in file_name:
+        temperature = int(file_name.split("-")[1])
+        temp_serial = int(file_name.split("-")[2])
+        droplet_mass_point = file_name[file_name.find(".") - 1]
+
     return {"file_name": file_name, "temperature": temperature,
             "temperature_serial": temp_serial, "droplet": droplet_mass_point}
 
