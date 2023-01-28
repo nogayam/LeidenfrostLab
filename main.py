@@ -3,6 +3,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import math
+from fitter import Fitter
+from scipy.stats import exponweib
+from scipy.stats import kstest
 
 pd.options.mode.chained_assignment = None  # default='warn'
 
@@ -41,15 +44,17 @@ def main():
         drop.get_peak_times()
         drop.get_std()
         drop.get_peaks_amount()
+
         #drop.get_no_peaks()
 
-        drop.get_oscillations_filter(2)
+        drop.get_oscillations_filter(3)
         drop.linear_fit_osc()
-        drop.stdv_from_linear_fit()
         #drop.plot_y_with_osc_threshold()
-
-        #drop.normalize_by_osc_linear_fit()
+        drop.stdv_from_linear_fit()
+        drop.normalize_by_osc_linear_fit()
         #drop.plot_y_with_peaks()
+        drop.height_fit()
+        #drop.plot_y_with_height_linear_fit()
 
         normalization_dict[str(drop.temperature)] += len(drop.raw_data_df)
         peaksy = drop.peaks_df.iloc[drop.peaks_df["peaks_y"].nlargest(1).index]["peaks_y"]
@@ -69,13 +74,15 @@ def main():
     temps = []
     temps_stdv = []
     for temp in df_temp_stdv.keys():
-        temps += [int(temp)]
-        temps_stdv += [np.average(df_temp_stdv[temp])]
-
-    plt.plot(temps, temps_stdv)
-    plt.suptitle(f'Temperature vs. Oscillation STDV')
-    plt.ylabel('Oscillation STDV [mm]')
-    plt.xlabel('Temperature [c]')
+        if temp not in ['295', '305', '306', '308']:
+            temps_stdv += [np.average(df_temp_stdv[temp])]
+            temps += [int(temp)]
+    plt.plot(temps, temps_stdv, marker="o", markersize=5, markerfacecolor="blue", linestyle="-", color='black')
+    plt.suptitle(f'Temperature-Oscillation STDV', fontsize=20)
+    plt.ylabel('Oscillation STDV [mm]', fontsize=15)
+    plt.xlabel('Temperature [c]', fontsize=15)
+    plt.yticks(fontsize=12)
+    plt.xticks(fontsize=12)
     plt.show()
 
         #df_temps[str(drop.temperature)] = pd.concat([df_temps[str(drop.temperature)], drop.peaks_df.iloc[drop.peaks_df["dt"].index]])
@@ -90,13 +97,16 @@ def main():
     temps = []
     temps_average_peaks_amount = []
     for temp in df_peaks_amount.keys():
-        temps += [int(temp)]
-        temps_average_peaks_amount += [np.average(df_peaks_amount[temp])]
+        if temp not in ['295', '305', '306', '308']:
+            temps += [int(temp)]
+            temps_average_peaks_amount += [np.average(df_peaks_amount[temp])]
 
-    plt.plot(temps, temps_average_peaks_amount)
-    plt.suptitle(f'Temperature vs. Average Peaks Amount')
-    plt.ylabel('Average Peaks Amount')
-    plt.xlabel('Temperature [c]')
+    plt.plot(temps, temps_average_peaks_amount, marker="o", markersize=5, markerfacecolor="blue", linestyle="-", color='black')
+    plt.suptitle(f'Temperature-Average Jump count', fontsize=20)
+    plt.ylabel('Average Jump count', fontsize=15)
+    plt.xlabel('Temperature [c]', fontsize=15)
+    plt.yticks(fontsize=12)
+    plt.xticks(fontsize=12)
     plt.show()
 
 
@@ -134,16 +144,17 @@ def main():
                      ha='right', va='top')
         current_axs.plot([avg_weighted_radius, avg_weighted_radius], [0, 30])
 
-    plt.legend()
-    plt.show()
+    #plt.legend()
+    #plt.show()
 
-    plt.plot(avg_weighted_x, avg_weighted_y)
-    plt.suptitle('Height-Radius weighted average')
-    plt.show()
+    #plt.plot(avg_weighted_x, avg_weighted_y)
+    #plt.suptitle('Height-Radius weighted average')
+    #plt.show()
 
 
 # Plot: time vs. peaks
     fig, axs = plt.subplots(4, 5)
+    plt.title("Time of Peak Scatter", fontsize=20)
     avg_weighted_y = []
     avg_weighted_x = []
     for temp in df_temps.keys():
@@ -161,8 +172,8 @@ def main():
             print(f'{temp} has no peaks!')
             continue
 
-        current_axs.set_xlabel('Time [s]')
-        current_axs.set_ylabel('Height [mm]')
+        current_axs.set_xlabel('Time [s]', fontsize=15)
+        current_axs.set_ylabel('Height [mm]', fontsize=15)
 
         t = df_temps[temp]['peaks_t']
         y = df_temps[temp]['peaks_y']
@@ -180,28 +191,69 @@ def main():
     plt.legend()
     plt.show()
 
-    plt.plot(avg_weighted_x, avg_weighted_y)
-    plt.suptitle('Peaks-Time weighted average')
+    plt.plot(avg_weighted_x, avg_weighted_y, )
+    plt.suptitle('Time of Peak weighted average')
     plt.show()
 
+#test boltzman fit:
+    temp = df_temps['290']
+    temp_in_kelvin = 563.15 #kelvin
+    droplet_mass = 997 * (2.4429*(10**(-15))) #kg
+    g = 9.98
+    k = 1.380649 * (10**(-23))
+    y = pd.DataFrame({"y": np.arange(0, 20, 0.00001)})
+    y["ph"] = np.exp(-1 * droplet_mass * (y["y"]/1000) * g / (k * temp_in_kelvin))
+    #plt.plot(y["y"],y["ph"])
+    #plt.show()
+    data = plt.hist(temp["peaks_y"], bins=20, density=False, range=(0, 20))
+    plt.hist(temp["peaks_y"], bins=20, density=False, range=(0, 20))
+    plt.hist(temp["y"], bins=20, density=False, range=(0, 20))  # 1
+    total_events = np.sum(np.histogram(temp["peaks_y"], bins=20)[0])
+    plt.annotate("Total events: {}".format(total_events), xy=(1, 1), xycoords='axes fraction',
+                         xytext=(-5, -5), textcoords='offset points',
+                         ha='right', va='top', fontsize=12)
+    plt.title("Jumps Histogram", fontsize=20)
+    plt.xlabel('Height [mm]', fontsize=15)
+    plt.ylabel('Events', fontsize=15)
+    plt.yticks(fontsize=12)
+    plt.xticks(fontsize=12)
+    plt.vlines(3, ymin=0, ymax=60, color='orange')
+    plt.text(3, 61, 'x=3', ha='center', va='top', weight='bold', fontsize=10)
+    plt.show()
+    f = Fitter(data[0], distributions=['boltzmann'])
+    #ToDo: add blotzmann params
+    #f.fit()
+    #f.summary()
+    #https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.boltzmann.html
+    #https://medium.com/@amirarsalan.rajabi/distribution-fitting-with-python-scipy-bb70a42c0aed
+
+#Plot: Peaks Hist for one Temp
+
 #Plot: Peaks Height Histogram
-    fig, axs = plt.subplots(4, 5)
+    #fig, axs = plt.subplots(4, 5)
+    fig, axs = plt.subplots(1, 3)
+    plt.suptitle("Jumps Height Histogram", fontsize=20)
     for temp in df_temps.keys():
-        if temp in ['305', '306', '308']: #"295", "305"]:
+        if temp not in config.TEMP_3: #"295", "305"]:
             continue
-        t_index = config.TEMP_2.index(temp)
+        #if int(temp) > 290:
+                #continue
+        t_index = config.TEMP_3.index(temp)
         #if [int(t_index / 5), t_index % 5] == [4, 2]:
          #   current_axs = axs[3, 3]
         #else:0
-        current_axs = axs[int(t_index / 5), t_index % 5]
+        print(int(t_index / 3), t_index % 3)
+        #current_axs = axs[int(t_index / 3), t_index + ]
+        current_axs = axs[t_index]
 
-
-        current_axs.set_title(f"T {temp} [C]")
+        current_axs.set_title(f"T {temp} [C]", fontsize=15)
         if df_temps[temp].empty:
             print(f'{temp} has no peaks!')
             continue
 
         current_axs.hist(df_temps[temp]["peaks_y"], bins=20, density=True, range=(0, 20)) #1
+        current_axs.vlines(3, ymin=0, ymax=0.35, color='orange')
+        current_axs.text(3, 0.36, 'x=3', ha='center', va='top', weight='bold', fontsize=10)
         total_events = np.sum(np.histogram(df_temps[temp]["peaks_y"], bins=20)[0])
         current_axs.annotate("Total events: {}".format(total_events), xy=(1, 1), xycoords='axes fraction',
                      xytext=(-5, -5), textcoords='offset points',
@@ -210,8 +262,8 @@ def main():
 
         #current_axs.hist(df_temps[temp]["y_norm"], bins=60, density=False, range=(0, 20))
         #current_axs.hist(df_temps[temp]["dt"], bins=40, density=False, range=(0, 0.4)) #0.02
-        current_axs.set_xlabel('Height [mm]')
-        current_axs.set_ylabel('Events')
+        current_axs.set_xlabel('Height [mm]', fontsize=12)
+        current_axs.set_ylabel('Events', fontsize=12)
         #current_axs.set_ylim([0, 80])
         #current_axs.hist2d(df_temps[temp]["peaks_t"], df_temps[temp]["peaks_y"], bins=10)
 
@@ -230,6 +282,7 @@ def main():
 
 # Plot: Oscillation Height Histogram
     fig, axs = plt.subplots(4, 5)
+    plt.title('Oscillations Height Histogram')
     for temp in df_temps_oscillations.keys():
         if temp in ['305', '306', '308']:  # "295", "305"]:
             continue
@@ -244,12 +297,11 @@ def main():
             print(f'{temp} has no peaks!')
             continue
 
-        current_axs.hist(df_temps_oscillations[temp]["osc_y"], bins=30, density=True, range=(0, 2))  # 1
+        current_axs.hist(df_temps_oscillations[temp]["osc_y"], bins=20, density=True, range=(0, 2))  # 1
         total_events = np.sum(np.histogram(df_temps_oscillations[temp]["osc_y"], bins=20)[0])
         current_axs.annotate("Total events: {}".format(total_events), xy=(1, 1), xycoords='axes fraction',
                              xytext=(-5, -5), textcoords='offset points',
                              ha='right', va='top')
-
         current_axs.set_xlabel('Height [mm]')
         current_axs.set_ylabel('Events')
 
@@ -279,6 +331,37 @@ def main():
     plt.legend()
     plt.show()
     #csv_data.write_to_csv(output_path, max_heights_data)
+
+    #oscillation_times
+    fig, axs = plt.subplots(4, 5)
+    plt.title('Oscillations Times Histogram')
+    for temp in df_temps_oscillations.keys():
+        if temp in ['305', '306', '308']:  # "295", "305"]:
+            continue
+
+        current_df = df_temps_oscillations[temp]
+        if current_df.empty:
+            continue
+        current_df["dt"] = current_df["osc_t"].diff(1)
+        current_df["dt"][0] = current_df["osc_t"].diff(1)[0]
+
+        t_index = config.TEMP_2.index(temp)
+        current_axs = axs[int(t_index / 5), t_index % 5]
+
+        current_axs.set_title(f"T {temp} [C]")
+        if df_temps[temp].empty:
+            print(f'{temp} has no peaks!')
+            continue
+        print(current_df)
+        current_axs.hist(current_df["dt"].dropna().values, bins=30, density=False, range=(0, 0.05)) #0.02
+        total_events = np.sum(np.histogram(current_df["dt"].dropna().values, bins=40)[0])
+        current_axs.annotate("Total events: {}".format(total_events), xy=(1, 1), xycoords='axes fraction',
+                             xytext=(-5, -5), textcoords='offset points',
+                             ha='right', va='top')
+        current_axs.set_xlabel('Time [s]')
+        current_axs.set_ylabel('Events')
+    plt.legend()
+    plt.show()
 
 
     #print(f"successfully wrote data to {output_path}")

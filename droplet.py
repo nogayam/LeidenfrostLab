@@ -99,6 +99,18 @@ class Droplet:
         self.osc_threshold_df = pd.DataFrame(data={"osc_y": osc_y, "osc_t": osc_t})
         self.osc_std = self.osc_threshold_df.std()["osc_y"]
 
+    def oscillation_filtering(self, time_filter=0.006):
+        self.osc_threshold_df["dt"] = self.osc_threshold_df["osc_t"].diff(1)
+        self.osc_threshold_df["dt"][0] = self.osc_threshold_df["osc_t"][0]
+        self.osc_threshold_df["dh"] = self.osc_threshold_df["osc_y"].diff(1)
+        self.osc_threshold_df["dh"][0] = 0
+        print(self.osc_threshold_df)
+        indexes_to_filter = self.osc_threshold_df.index[self.osc_threshold_df['dt']>= time_filter].tolist()
+        new_indexes_to_filter = [x - 1 for x in indexes_to_filter]
+        print(new_indexes_to_filter)
+        bad_df = self.osc_threshold_df.index.isin(new_indexes_to_filter)
+        self.osc_filtered_df = self.osc_threshold_df[~bad_df]
+
     def linear_fit_osc(self):
         oscy = self.osc_threshold_df["osc_y"]
         osct = self.osc_threshold_df["osc_t"]
@@ -117,33 +129,79 @@ class Droplet:
         self.raw_data_df["y_linear_norm"] = y_norm - self.linear_osc_fit_fun(t_norm);
         self.raw_data_df["y_linear_norm"] = self.raw_data_df["y_linear_norm"] - self.raw_data_df["y_linear_norm"].min()
 
+    def height_fit(self):
+        first_y = self.raw_data_df["y_norm"][0]
+        index = 0
+        while first_y >= 3:
+            index += 1
+            first_y = self.raw_data_df["y_norm"][index]
+        last_y = self.raw_data_df["y_norm"].iloc[-1]
+        index = -1
+        while last_y >= 3:
+            index -= 1
+            last_y = self.raw_data_df["y_norm"].iloc[index]
+        first_t = self.raw_data_df["t_norm"][0]
+        last_t = self.raw_data_df["t_norm"].iloc[-1]
+        y = [first_y, last_y]
+        t = [first_t, last_t]
+        coef = np.polyfit(t, y, 1)
+        self.height_linear_fit = np.poly1d(coef)
+        self.height_linear_fit = pd.DataFrame(data={"t": t, "y": self.height_linear_fit(t)})
+
     # Plots
     def plot_y_with_peaks(self):
         yaxis = self.raw_data_df["y_norm"]
         xaxis = self.raw_data_df["t_norm"]
-        plt.plot(xaxis, yaxis, marker="x", markersize=2)
-        plt.xlabel('Time [s]')
-        plt.ylabel('Height [mm]')
+        plt.plot(xaxis, yaxis)#, marker="x", markersize=2)
+        plt.yticks(fontsize=12)
+        plt.xticks(fontsize=12)
+        plt.ylabel("Height [mm]", fontsize=15)
+        plt.xlabel("Time [s]", fontsize=15)
         peaksy = self.peaks_df["peaks_y"]
         peakst = self.peaks_df["peaks_t"]
-        plt.plot(peakst, peaksy, marker="o", markerfacecolor="red", linestyle=" ")
-        plt.suptitle(f'{self.temperature}-{self.temperature_serial}-{self.identifier}')
+        plt.plot(peakst, peaksy, marker="o", markersize=6, markerfacecolor="red", linestyle=" ")
+        #plt.suptitle(f'{self.temperature}-{self.temperature_serial}-{self.identifier}')
+        plt.title('Height in Time with Jumps', fontsize=20)
+        plt.hlines(3, xmin=0, xmax=xaxis.max(), color='purple')
+        plt.text(0.1, 3, 'y=3', ha='left', va='bottom', weight='bold', fontsize=10)
+        #plt.plot([3, 3], [0, 2], color='orange')
         plt.show()
         return
+
+    def plot_y_with_height_linear_fit(self):
+        yaxis = self.raw_data_df["y_norm"]
+        xaxis = self.raw_data_df["t_norm"]
+        plt.plot(xaxis, yaxis, linestyle="-")
+        plt.yticks(fontsize=12)
+        plt.xticks(fontsize=12)
+        plt.ylabel("Height [mm]", fontsize=15)
+        plt.xlabel("Time [s]", fontsize=15)
+        plt.title("Height in Time with Linear Fit", fontsize=20)
+        linear_fit_y = self.height_linear_fit["y"]
+        linear_fit_t = self.height_linear_fit["t"]
+        plt.plot(linear_fit_t, linear_fit_y, markerfacecolor="red", linestyle="-", color="purple")
+        plt.show()
 
     def plot_y_with_osc_threshold(self):
         yaxis = self.raw_data_df["y_norm"]
         xaxis = self.raw_data_df["t_norm"]
-        plt.plot(xaxis, yaxis, marker="x", markersize=2)
-        plt.xlabel('Time [s]')
-        plt.ylabel('Height [mm]')
+        plt.plot(xaxis, yaxis, marker=" ", markersize=2)
+        plt.xlabel('Time [s]', fontsize=15)
+        plt.ylabel('Height [mm]', fontsize=15)
+        plt.yticks(fontsize=12)
+        plt.xticks(fontsize=12)
+        #ocsy = self.osc_threshold_df["osc_y"]
+        #ocst = self.osc_threshold_df["osc_t"]
         ocsy = self.osc_threshold_df["osc_y"]
         ocst = self.osc_threshold_df["osc_t"]
         plt.plot(ocst, ocsy, marker="o", markerfacecolor="red", linestyle=" ")
         linear_fit_y = self.osc_linear_fit["y"]
         linear_fit_t = self.osc_linear_fit["t"]
-        plt.plot(linear_fit_t, linear_fit_y, markerfacecolor="red", linestyle="-", color="purple")
-        plt.suptitle(f'{self.temperature}-{self.temperature_serial}-{self.identifier}')
+        #plt.plot(linear_fit_t, linear_fit_y, markerfacecolor="red", linestyle="-", color="purple")
+        plt.hlines(3, xmin=0, xmax=xaxis.max(), color='purple')
+        plt.text(0.1, 3, 'y=3', ha='left', va='bottom', weight='bold', fontsize=10)
+        #plt.suptitle(f'{self.temperature}-{self.temperature_serial}-{self.identifier}')
+        plt.suptitle("Height in Time with Oscillations", fontsize=20)
         plt.show()
         return
 
@@ -153,7 +211,6 @@ class Droplet:
         else:
             self.peaks_df["dt"] = self.peaks_df["peaks_t"].diff(1)
             self.peaks_df["dt"][0] = self.peaks_df["peaks_t"][0]
-
         return
 
     def get_no_peaks(self):
@@ -189,6 +246,7 @@ class Droplet:
             validated = True
 
         self.validated = validated
+
 
 
 
